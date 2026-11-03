@@ -106,7 +106,7 @@ export default function App() {
       <div className="min-h-screen bg-white text-stone-900 flex flex-col font-sans">
         <header className="w-full border-b border-stone-200 px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="w-8 h-8 rounded-full border-2 border-stone-900 flex items-center justify-center font-bold text-lg">🎯</span>
+            <img src="/MoneyRadarLogo.png" alt="MoneyRadar Logo" className="w-8 h-8 object-contain" />
             <span className="text-xl font-bold tracking-tight">Money Radar</span>
           </div>
           <div className="flex items-center gap-4">
@@ -141,7 +141,7 @@ export default function App() {
           </div>
           <div className="flex-1 flex justify-center">
             <div className="w-72 h-72 md:w-96 md:h-96 bg-[#f4f6f0] rounded-3xl border-2 border-[#4b583f]/20 flex items-center justify-center shadow-lg relative">
-              <span className="text-9xl animate-pulse">🎯</span>
+              <img src="/MoneyRadarLogo.png" alt="MoneyRadar Logo" className="w-48 h-48 md:w-64 md:h-64 object-contain animate-pulse" />
             </div>
           </div>
         </main>
@@ -155,7 +155,7 @@ export default function App() {
       <div className="min-h-screen bg-stone-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <div className="flex justify-center items-center gap-2 mb-4">
-            <span className="w-8 h-8 rounded-full border-2 border-stone-900 flex items-center justify-center font-bold">🎯</span>
+            <img src="/MoneyRadarLogo.png" alt="MoneyRadar Logo" className="w-8 h-8 object-contain" />
             <span className="text-xl font-bold tracking-tight">Money Radar</span>
           </div>
           <h2 className="text-center text-3xl font-extrabold text-stone-900">Sign In</h2>
@@ -209,8 +209,7 @@ export default function App() {
       <div className="min-h-screen bg-stone-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <div className="flex justify-center items-center gap-2 mb-4">
-            <span className="w-8 h-8 rounded-full border-2 border-stone-900 flex items-center justify-center font-bold">🎯</span>
-            <span className="text-xl font-bold tracking-tight">Money Radar</span>
+          <img src="/MoneyRadarLogo.png" alt="MoneyRadar Logo" className="w-8 h-8 object-contain" /><span className="text-xl font-bold tracking-tight">Money Radar</span>
           </div>
           <h2 className="text-center text-3xl font-extrabold text-stone-900">Sign Up</h2>
           <p className="mt-2 text-center text-sm text-stone-600">Create an account to find opportunities.</p>
@@ -283,7 +282,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-8">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => setCurrentView('landing')}>
-              <span className="w-8 h-8 rounded-full border-2 border-stone-900 flex items-center justify-center font-bold">🎯</span>
+              <img src="/MoneyRadarLogo.png" alt="MoneyRadar Logo" className="w-8 h-8 object-contain" />
               <span className="text-lg font-bold tracking-tight">Money Radar</span>
             </div>
 
