@@ -1,1 +1,27 @@
 @import "tailwindcss";
+
+/* Tailwind v4 resets buttons to the default cursor; restore the pointer so
+   clickable elements are recognizable on hover. */
+button:not(:disabled),
+label:has(> input[type="checkbox"]) {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* Consistent, visible keyboard focus in the Money Radar green. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid #4b583f;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

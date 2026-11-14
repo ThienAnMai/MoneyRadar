@@ -1,9 +1,52 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import CategoryBadge from './components/CategoryBadge.jsx';
+import Toast from './components/Toast.jsx';
+import WelcomeGuide from './components/WelcomeGuide.jsx';
+import { useToast } from './components/useToast.js';
+import {
+  ArrowRightIcon,
+  BackIcon,
+  CheckCircleIcon,
+  CheckIcon,
+  ChecklistIcon,
+  ChevronDownIcon,
+  CloseIcon,
+  CompareIcon,
+  ExploreIcon,
+  HelpIcon,
+  PlusIcon,
+  RadarIcon,
+  UserIcon,
+} from './components/icons.jsx';
+
+const TABS = [
+  { id: 'explore', label: 'Explore', shortLabel: 'Explore', Icon: ExploreIcon },
+  { id: 'radar', label: 'My Radar', shortLabel: 'My Radar', Icon: RadarIcon },
+  { id: 'compare', label: 'Compare & Plan', shortLabel: 'Compare', Icon: CompareIcon },
+  { id: 'active', label: 'Active Pursuits', shortLabel: 'Pursuits', Icon: ChecklistIcon },
+];
+const TAB_LABELS = Object.fromEntries(TABS.map((t) => [t.id, t.label]));
+const MAX_TAB_HISTORY = 20;
+const GUIDE_DISMISSED_KEY = 'moneyradar.guideDismissed';
+const DEFAULT_PURSUIT_STEPS = ['Check eligibility', 'Gather documents', 'Submit application'];
+
+function readGuideDismissed() {
+  try {
+    return localStorage.getItem(GUIDE_DISMISSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 export default function App() {
   const [currentView, setCurrentView] = useState('landing'); // 'landing', 'signin', 'signup', 'dashboard'
   const [activeTab, setActiveTab] = useState('explore'); // 'explore', 'radar', 'compare', 'active'
+  const [tabHistory, setTabHistory] = useState([]); // previously visited tabs, for the in-app Back button
   const [selectedOpportunity, setSelectedOpportunity] = useState(null); // Modal state for view details
+  const [showGuide, setShowGuide] = useState(() => !readGuideDismissed());
+  const { toast, showToast, dismissToast } = useToast();
+  const modalCloseRef = useRef(null);
+  const modalReturnFocusRef = useRef(null);
 
   const [profile, setProfile] = useState({
     employment: 'Part-time',
@@ -14,6 +57,7 @@ export default function App() {
     goal: 'Tuition support',
   });
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileDraft, setProfileDraft] = useState(profile); // questionnaire edits, applied on Save
 
   const [activePursuits, setActivePursuits] = useState([
     {
@@ -99,6 +143,133 @@ export default function App() {
       prev.map((p) => (p.id === pursuitId ? { ...p, expanded: !p.expanded } : p))
     );
   };
+
+  // --- NAVIGATION, FEEDBACK & GUIDANCE ---
+  const [compareIds, setCompareIds] = useState(() =>
+    opportunitiesList.filter((o) => o.status === 'In comparison').map((o) => o.id)
+  );
+  const comparedOpportunities = opportunitiesList.filter((o) => compareIds.includes(o.id));
+
+  const navigateTo = (tab) => {
+    if (tab === activeTab) return;
+    setTabHistory((prev) => [...prev, activeTab].slice(-MAX_TAB_HISTORY));
+    setActiveTab(tab);
+    window.scrollTo({ top: 0 });
+  };
+
+  const goBack = () => {
+    if (tabHistory.length === 0) return;
+    setActiveTab(tabHistory[tabHistory.length - 1]);
+    setTabHistory((prev) => prev.slice(0, -1));
+    window.scrollTo({ top: 0 });
+  };
+
+  const signOut = () => {
+    setSelectedOpportunity(null);
+    setIsEditingProfile(false);
+    setTabHistory([]);
+    setActiveTab('explore');
+    setCurrentView('landing');
+  };
+
+  const dismissGuide = () => {
+    setShowGuide(false);
+    try {
+      localStorage.setItem(GUIDE_DISMISSED_KEY, '1');
+    } catch {
+      // Storage unavailable (e.g. private mode); the guide just reappears next visit.
+    }
+  };
+
+  const addToComparison = (item) => {
+    setSelectedOpportunity(null);
+    if (compareIds.includes(item.id)) {
+      showToast(`${item.title} is already in your comparison.`, 'info');
+    } else {
+      setCompareIds((prev) => [...prev, item.id]);
+      showToast(`Added ${item.title} to your comparison.`);
+    }
+    navigateTo('compare');
+  };
+
+  const removeFromComparison = (item) => {
+    setCompareIds((prev) => prev.filter((id) => id !== item.id));
+    showToast(`Removed ${item.title} from your comparison.`);
+  };
+
+  const pursueOpportunity = (item) => {
+    const existing = activePursuits.find((p) => p.title === item.title);
+    if (existing) {
+      setActivePursuits((prev) => prev.map((p) => (p.id === existing.id ? { ...p, expanded: true } : p)));
+      showToast(`${item.title} is already in Active Pursuits. Its checklist is open below.`, 'info');
+    } else {
+      setActivePursuits((prev) => [
+        ...prev,
+        {
+          id: item.id,
+          title: item.title,
+          category: item.category,
+          steps: DEFAULT_PURSUIT_STEPS.map((label, i) => ({ id: `s${i + 1}`, label, checked: false })),
+          expanded: true,
+        },
+      ]);
+      showToast(`Added ${item.title} to Active Pursuits.`);
+    }
+    navigateTo('active');
+  };
+
+  const handleStepToggle = (pursuit, step) => {
+    toggleStep(pursuit.id, step.id);
+    const doneCount = pursuit.steps.filter((s) => (s.id === step.id ? !s.checked : s.checked)).length;
+    const total = pursuit.steps.length;
+    if (!step.checked && doneCount === total) {
+      showToast(`All ${total} steps complete for ${pursuit.title}.`);
+    } else if (!step.checked) {
+      showToast(`Marked "${step.label}" as done. ${doneCount} of ${total} steps complete.`);
+    } else {
+      showToast(`Marked "${step.label}" as not done. ${doneCount} of ${total} steps complete.`, 'info');
+    }
+  };
+
+  const openProfileEditor = () => {
+    setProfileDraft(profile);
+    setIsEditingProfile(true);
+  };
+
+  const cancelProfileEdit = () => {
+    setProfileDraft(profile);
+    setIsEditingProfile(false);
+  };
+
+  const saveProfile = () => {
+    const changed = Object.keys(profile).some((key) => profile[key] !== profileDraft[key]);
+    setIsEditingProfile(false);
+    if (changed) {
+      setProfile(profileDraft);
+      showToast('Profile saved. Your updated answers are shown in Your Profile.');
+    } else {
+      showToast('No changes to save. Your profile is unchanged.', 'info');
+    }
+  };
+
+  // Details modal: focus the close button on open, close on Escape, and return
+  // focus to the element that opened it.
+  useEffect(() => {
+    if (!selectedOpportunity) return undefined;
+    modalReturnFocusRef.current = document.activeElement;
+    modalCloseRef.current?.focus();
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setSelectedOpportunity(null);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      modalReturnFocusRef.current?.focus?.();
+    };
+  }, [selectedOpportunity]);
 
   // --- LANDING PAGE ---
   if (currentView === 'landing') {
@@ -268,6 +439,9 @@ export default function App() {
               Already have an account?{' '}
               <button onClick={() => setCurrentView('signin')} className="text-[#4b583f] font-semibold hover:underline">Log in →</button>
             </p>
+            <div className="text-center mt-2">
+              <button onClick={() => setCurrentView('landing')} className="text-xs text-stone-500 hover:underline">← Back to home</button>
+            </div>
           </div>
         </div>
       </div>
@@ -279,63 +453,105 @@ export default function App() {
     <div className="min-h-screen bg-stone-50 text-stone-900 flex flex-col font-sans relative">
       {/* Top Header & Navigation Bar */}
       <header className="bg-white border-b border-stone-200 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-8">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setCurrentView('landing')}>
-              <img src="/MoneyRadarLogo.png" alt="MoneyRadar Logo" className="w-8 h-8 object-contain" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-8 min-w-0">
+            <button
+              type="button"
+              onClick={() => navigateTo('explore')}
+              aria-label="Money Radar home (Explore)"
+              className="flex items-center gap-2 rounded-lg"
+            >
+              <img src="/MoneyRadarLogo.png" alt="" className="w-8 h-8 object-contain" />
               <span className="text-lg font-bold tracking-tight">Money Radar</span>
-            </div>
+            </button>
 
-            <nav className="hidden md:flex items-center gap-1">
-              <button
-                onClick={() => setActiveTab('explore')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeTab === 'explore' ? 'bg-[#f4f6f0] text-[#4b583f]' : 'text-stone-600 hover:bg-stone-100'}`}
-              >
-                Explore
-              </button>
-              <button
-                onClick={() => setActiveTab('radar')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeTab === 'radar' ? 'bg-[#f4f6f0] text-[#4b583f]' : 'text-stone-600 hover:bg-stone-100'}`}
-              >
-                My Radar
-              </button>
-              <button
-                onClick={() => setActiveTab('compare')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeTab === 'compare' ? 'bg-[#f4f6f0] text-[#4b583f]' : 'text-stone-600 hover:bg-stone-100'}`}
-              >
-                Compare & Plan
-              </button>
-              <button
-                onClick={() => setActiveTab('active')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeTab === 'active' ? 'bg-[#f4f6f0] text-[#4b583f]' : 'text-stone-600 hover:bg-stone-100'}`}
-              >
-                Active Pursuits
-              </button>
+            <nav aria-label="Main" className="hidden md:flex items-center gap-1">
+              {TABS.map(({ id, label, Icon }) => {
+                const isActive = activeTab === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => navigateTo(id)}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={`relative flex items-center gap-2 px-3 lg:px-4 py-2 rounded-lg text-sm font-medium transition ${isActive ? 'bg-[#f4f6f0] text-[#4b583f] font-semibold after:absolute after:inset-x-3 after:-bottom-[13px] after:h-0.5 after:bg-[#4b583f]' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900 active:bg-stone-200'}`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {label}
+                  </button>
+                );
+              })}
             </nav>
           </div>
 
-          <div className="flex items-center gap-4">
-            <button onClick={() => setCurrentView('landing')} className="text-sm font-medium text-stone-500 hover:text-stone-800">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {!showGuide && (
+              <button
+                type="button"
+                onClick={() => setShowGuide(true)}
+                className="flex items-center gap-1.5 text-sm font-medium text-stone-600 hover:text-stone-900 hover:bg-stone-100 px-2.5 py-2 rounded-lg"
+              >
+                <HelpIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">Guide</span>
+                <span className="sr-only sm:hidden">Show guide</span>
+              </button>
+            )}
+            <button type="button" onClick={signOut} className="text-sm font-medium text-stone-500 hover:text-stone-800 hover:bg-stone-100 px-2.5 py-2 rounded-lg">
               Sign Out
             </button>
-            <div className="w-9 h-9 rounded-full bg-stone-200 flex items-center justify-center font-semibold text-stone-700 border border-stone-300">
-              👤
-            </div>
+            <button
+              type="button"
+              onClick={() => navigateTo('radar')}
+              aria-label="Your profile (My Radar)"
+              title="Your profile"
+              className="w-9 h-9 rounded-full bg-stone-200 hover:bg-stone-300 flex items-center justify-center text-stone-700 border border-stone-300"
+            >
+              <UserIcon className="w-5 h-5" />
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Mobile Sub-Navigation Bar */}
-      <div className="md:hidden bg-white border-b border-stone-200 px-4 py-2 flex justify-around text-xs font-medium text-stone-600">
-        <button onClick={() => setActiveTab('explore')} className={activeTab === 'explore' ? 'text-[#4b583f] font-bold' : ''}>Explore</button>
-        <button onClick={() => setActiveTab('radar')} className={activeTab === 'radar' ? 'text-[#4b583f] font-bold' : ''}>My Radar</button>
-        <button onClick={() => setActiveTab('compare')} className={activeTab === 'compare' ? 'text-[#4b583f] font-bold' : ''}>Compare</button>
-        <button onClick={() => setActiveTab('active')} className={activeTab === 'active' ? 'text-[#4b583f] font-bold' : ''}>Active</button>
-      </div>
+      {/* Mobile Bottom Navigation Bar */}
+      <nav
+        aria-label="Main"
+        className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-stone-200 grid grid-cols-4 pb-[env(safe-area-inset-bottom)]"
+      >
+        {TABS.map(({ id, shortLabel, Icon }) => {
+          const isActive = activeTab === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => navigateTo(id)}
+              aria-current={isActive ? 'page' : undefined}
+              className={`relative flex flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium active:bg-stone-100 ${isActive ? 'text-[#4b583f] font-bold' : 'text-stone-500'}`}
+            >
+              {isActive && <span className="absolute top-0 inset-x-4 h-0.5 rounded-full bg-[#4b583f]" aria-hidden="true" />}
+              <span className={`px-3 py-0.5 rounded-full ${isActive ? 'bg-[#f4f6f0]' : ''}`}>
+                <Icon className="w-5 h-5" />
+              </span>
+              {shortLabel}
+            </button>
+          );
+        })}
+      </nav>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-8">
-        
+      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 pt-6 pb-28 md:py-8 space-y-6">
+        {tabHistory.length > 0 && (
+          <button
+            type="button"
+            onClick={goBack}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-[#4b583f] hover:bg-[#f4f6f0] active:bg-[#e9eee2] -ml-2 px-2 py-1.5 rounded-lg"
+          >
+            <BackIcon className="w-4 h-4" />
+            Back to {TAB_LABELS[tabHistory[tabHistory.length - 1]]}
+          </button>
+        )}
+
+        {showGuide && <WelcomeGuide activeTab={activeTab} onNavigate={navigateTo} onDismiss={dismissGuide} />}
+
         {/* TAB 1: EXPLORE */}
         {activeTab === 'explore' && (
           <div className="space-y-6">
@@ -345,19 +561,31 @@ export default function App() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {opportunitiesList.map((item) => (
-                <div key={item.id} className="bg-white p-6 rounded-2xl border border-stone-200 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSelectedOpportunity(item)}
+                  aria-label={`View details: ${item.title}`}
+                  className="group text-left bg-white p-6 rounded-2xl border border-stone-200 shadow-sm hover:shadow-md hover:border-[#4b583f]/60 active:bg-stone-50 transition flex flex-col justify-between"
+                >
                   <div>
-                    <span className="text-xs font-bold text-[#4b583f] bg-[#f4f6f0] px-2.5 py-1 rounded-md">{item.category}</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <CategoryBadge category={item.category} />
+                      {compareIds.includes(item.id) && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-stone-500">
+                          <CheckIcon className="w-3.5 h-3.5" /> In comparison
+                        </span>
+                      )}
+                    </div>
                     <h3 className="text-lg font-bold text-stone-900 mt-3">{item.title}</h3>
+                    <p className="text-sm font-semibold text-stone-800 mt-1">{item.value}</p>
                     <p className="text-sm text-stone-600 mt-1">{item.description}</p>
                   </div>
-                  <button
-                    onClick={() => setSelectedOpportunity(item)}
-                    className="mt-6 text-sm font-semibold text-[#4b583f] hover:underline text-left"
-                  >
-                    View details →
-                  </button>
-                </div>
+                  <span className="mt-6 inline-flex items-center gap-1 text-sm font-semibold text-[#4b583f] group-hover:underline">
+                    View details
+                    <ArrowRightIcon className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+                  </span>
+                </button>
               ))}
             </div>
           </div>
@@ -366,14 +594,17 @@ export default function App() {
         {/* TAB 2: MY RADAR */}
         {activeTab === 'radar' && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
               <div>
                 <h1 className="text-3xl font-extrabold text-stone-900">My Radar</h1>
                 <p className="text-stone-600 text-sm mt-1">Opportunities matched to your profile.</p>
               </div>
               <button
-                onClick={() => setIsEditingProfile(!isEditingProfile)}
-                className="bg-stone-100 hover:bg-stone-200 text-stone-800 text-sm font-medium px-4 py-2 rounded-lg transition"
+                type="button"
+                onClick={isEditingProfile ? cancelProfileEdit : openProfileEditor}
+                aria-expanded={isEditingProfile}
+                aria-controls="profile-questionnaire"
+                className="self-start sm:self-auto bg-stone-100 hover:bg-stone-200 active:bg-stone-300 border border-stone-200 text-stone-800 text-sm font-medium px-4 py-2 rounded-lg transition"
               >
                 {isEditingProfile ? 'Close Questionnaire' : 'Edit Profile Questionnaire'}
               </button>
@@ -397,34 +628,46 @@ export default function App() {
 
             {/* Questionnaire panel */}
             {isEditingProfile && (
-              <div className="bg-[#f4f6f0] p-6 rounded-2xl border border-[#4b583f]/30 space-y-4">
+              <div id="profile-questionnaire" className="bg-[#f4f6f0] p-6 rounded-2xl border border-[#4b583f]/30 space-y-4">
                 <h3 className="font-bold text-[#4b583f] text-lg">Update Profile Questionnaire</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-stone-700 mb-1">Employment</label>
+                    <label htmlFor="profile-employment" className="block text-xs font-semibold text-stone-700 mb-1">Employment</label>
                     <input
+                      id="profile-employment"
                       type="text"
-                      value={profile.employment}
-                      onChange={(e) => setProfile({ ...profile, employment: e.target.value })}
+                      value={profileDraft.employment}
+                      onChange={(e) => setProfileDraft({ ...profileDraft, employment: e.target.value })}
                       className="w-full px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-stone-700 mb-1">Education</label>
+                    <label htmlFor="profile-education" className="block text-xs font-semibold text-stone-700 mb-1">Education</label>
                     <input
+                      id="profile-education"
                       type="text"
-                      value={profile.education}
-                      onChange={(e) => setProfile({ ...profile, education: e.target.value })}
+                      value={profileDraft.education}
+                      onChange={(e) => setProfileDraft({ ...profileDraft, education: e.target.value })}
                       className="w-full px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm"
                     />
                   </div>
                 </div>
-                <button
-                  onClick={() => setIsEditingProfile(false)}
-                  className="bg-[#4b583f] hover:bg-[#3d4833] text-white text-sm font-medium px-6 py-2.5 rounded-lg transition"
-                >
-                  Save and Scan
-                </button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={saveProfile}
+                    className="bg-[#4b583f] hover:bg-[#3d4833] active:bg-[#323b2a] text-white text-sm font-medium px-6 py-2.5 rounded-lg transition"
+                  >
+                    Save and Scan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelProfileEdit}
+                    className="text-sm font-medium text-stone-700 hover:bg-white/70 active:bg-white px-4 py-2.5 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             )}
 
@@ -432,23 +675,34 @@ export default function App() {
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="font-bold text-stone-900 text-lg">New Recommendations ({opportunitiesList.length})</h3>
-                <button className="text-xs text-[#4b583f] font-semibold hover:underline">Scan again</button>
+                <button
+                  type="button"
+                  onClick={() => showToast(`Scan complete. Showing ${opportunitiesList.length} recommendations for your current profile.`)}
+                  className="text-xs text-[#4b583f] font-semibold hover:underline hover:bg-[#f4f6f0] px-2 py-1 rounded-md"
+                >
+                  Scan again
+                </button>
               </div>
 
               {opportunitiesList.map((item) => (
-                <div key={item.id} className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm flex justify-between items-center">
-                  <div>
-                    <span className="text-xs font-bold text-[#4b583f] bg-[#f4f6f0] px-2.5 py-1 rounded">{item.category}</span>
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSelectedOpportunity(item)}
+                  aria-label={`View details: ${item.title}`}
+                  className="group w-full text-left bg-white p-5 rounded-2xl border border-stone-200 shadow-sm hover:shadow-md hover:border-[#4b583f]/60 active:bg-stone-50 transition flex justify-between items-center gap-4"
+                >
+                  <div className="min-w-0">
+                    <CategoryBadge category={item.category} />
                     <h4 className="font-bold text-stone-900 mt-2">{item.title}</h4>
                     <p className="text-xs text-stone-500">Based on your {item.category.toLowerCase()} profile</p>
                   </div>
-                  <button
-                    onClick={() => setSelectedOpportunity(item)}
-                    className="text-sm font-semibold text-[#4b583f] hover:underline"
-                  >
-                    View details →
-                  </button>
-                </div>
+                  <span className="shrink-0 inline-flex items-center gap-1 text-sm font-semibold text-[#4b583f] group-hover:underline">
+                    <span className="hidden sm:inline">View details</span>
+                    <span className="sm:hidden">Details</span>
+                    <ArrowRightIcon className="w-4 h-4" />
+                  </span>
+                </button>
               ))}
             </div>
           </div>
@@ -464,67 +718,93 @@ export default function App() {
 
             {/* Compare Side by Side section */}
             <div className="space-y-4">
-              <h3 className="font-bold text-stone-900 text-lg">Compare side by side</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white p-6 rounded-2xl border-2 border-[#4b583f]/40 shadow-sm space-y-4">
-                  <h4 className="font-bold text-stone-900 text-xl">Education Grant</h4>
-                  <div className="text-sm space-y-1 text-stone-600 border-t border-b border-stone-100 py-3">
-                    <p className="text-xs text-stone-400 uppercase font-semibold">Demo value</p>
-                    <p className="text-stone-900 font-bold text-lg">Up to $1,000</p>
-                    <p className="text-xs text-stone-400 uppercase font-semibold mt-2">Demo deadline</p>
-                    <p className="text-stone-900 font-medium">30 Nov 2026</p>
-                  </div>
-                  <p className="text-xs text-stone-600">Course fees and study materials.</p>
+              <h3 className="font-bold text-stone-900 text-lg">
+                Compare side by side <span className="text-stone-500 font-medium">({comparedOpportunities.length})</span>
+              </h3>
+              {comparedOpportunities.length === 0 ? (
+                <div className="bg-white p-6 rounded-2xl border border-dashed border-stone-300 text-center space-y-3">
+                  <p className="text-sm text-stone-600">Nothing to compare yet. Add opportunities from the saved queue below, or browse Explore.</p>
                   <button
-                    onClick={() => setActiveTab('active')}
-                    className="w-full bg-[#4b583f] hover:bg-[#3d4833] text-white py-2.5 rounded-lg font-medium text-sm transition"
+                    type="button"
+                    onClick={() => navigateTo('explore')}
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#4b583f] hover:bg-[#f4f6f0] px-3 py-2 rounded-lg"
                   >
-                    Pursue
+                    Browse Explore
+                    <ArrowRightIcon className="w-4 h-4" />
                   </button>
                 </div>
-
-                <div className="bg-white p-6 rounded-2xl border-2 border-[#4b583f]/40 shadow-sm space-y-4">
-                  <h4 className="font-bold text-stone-900 text-xl">Employment Benefit</h4>
-                  <div className="text-sm space-y-1 text-stone-600 border-t border-b border-stone-100 py-3">
-                    <p className="text-xs text-stone-400 uppercase font-semibold">Demo value</p>
-                    <p className="text-stone-900 font-bold text-lg">Up to $500</p>
-                    <p className="text-xs text-stone-400 uppercase font-semibold mt-2">Demo deadline</p>
-                    <p className="text-stone-900 font-medium">15 Dec 2026</p>
-                  </div>
-                  <p className="text-xs text-stone-600">Work-related training costs.</p>
-                  <button
-                    onClick={() => setActiveTab('active')}
-                    className="w-full bg-[#4b583f] hover:bg-[#3d4833] text-white py-2.5 rounded-lg font-medium text-sm transition"
-                  >
-                    Pursue
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Saved Queue */}
-            <div className="space-y-4">
-              <h3 className="font-bold text-stone-900 text-lg">Saved queue (3)</h3>
-              <div className="space-y-3">
-                {opportunitiesList.map((item) => (
-                  <div key={item.id} className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm flex justify-between items-center">
-                    <div>
-                      <h4 className="font-bold text-stone-900">{item.title}</h4>
-                      <p className="text-xs text-stone-500 mt-0.5">{item.status}</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right hidden sm:block">
-                        <span className="text-[10px] text-stone-400 uppercase block">Compare</span>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {comparedOpportunities.map((item) => (
+                    <div key={item.id} className="bg-white p-6 rounded-2xl border-2 border-[#4b583f]/40 shadow-sm space-y-4 flex flex-col">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-2">
+                          <CategoryBadge category={item.category} />
+                          <h4 className="font-bold text-stone-900 text-xl">{item.title}</h4>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeFromComparison(item)}
+                          aria-label={`Remove ${item.title} from comparison`}
+                          className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-stone-500 hover:text-stone-800 hover:bg-stone-100 px-2 py-1 rounded-md"
+                        >
+                          <CloseIcon className="w-3.5 h-3.5" />
+                          Remove
+                        </button>
                       </div>
+                      <div className="text-sm space-y-1 text-stone-600 border-t border-b border-stone-100 py-3">
+                        <p className="text-xs text-stone-400 uppercase font-semibold">Demo value</p>
+                        <p className="text-stone-900 font-bold text-lg">{item.value}</p>
+                        <p className="text-xs text-stone-400 uppercase font-semibold mt-2">Demo deadline</p>
+                        <p className="text-stone-900 font-medium">{item.deadline}</p>
+                      </div>
+                      <p className="text-xs text-stone-600 flex-1">{item.description}</p>
                       <button
-                        onClick={() => setActiveTab('active')}
-                        className="border border-[#4b583f] text-[#4b583f] hover:bg-[#4b583f] hover:text-white px-5 py-2 rounded-lg text-sm font-semibold transition"
+                        type="button"
+                        onClick={() => pursueOpportunity(item)}
+                        className="w-full bg-[#4b583f] hover:bg-[#3d4833] active:bg-[#323b2a] text-white py-2.5 rounded-lg font-medium text-sm transition"
                       >
                         Pursue
                       </button>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Saved Queue */}
+            <div className="space-y-4">
+              <h3 className="font-bold text-stone-900 text-lg">Saved queue ({opportunitiesList.length})</h3>
+              <div className="space-y-3">
+                {opportunitiesList.map((item) => {
+                  const isCompared = compareIds.includes(item.id);
+                  return (
+                    <div key={item.id} className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                      <div>
+                        <h4 className="font-bold text-stone-900">{item.title}</h4>
+                        <p className="text-xs text-stone-500 mt-0.5">{isCompared ? 'In comparison' : 'Saved for later'}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => (isCompared ? removeFromComparison(item) : addToComparison(item))}
+                          aria-label={isCompared ? `Comparing ${item.title}. Remove from comparison` : `Add ${item.title} to comparison`}
+                          className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition ${isCompared ? 'bg-[#f4f6f0] border-[#4b583f]/40 text-[#4b583f] hover:bg-[#e9eee2]' : 'border-stone-300 text-stone-700 hover:bg-stone-100 active:bg-stone-200'}`}
+                        >
+                          {isCompared ? <CheckIcon className="w-4 h-4" /> : <PlusIcon className="w-4 h-4" />}
+                          {isCompared ? 'Comparing' : 'Compare'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => pursueOpportunity(item)}
+                          className="border border-[#4b583f] text-[#4b583f] hover:bg-[#4b583f] hover:text-white active:bg-[#3d4833] px-5 py-2 rounded-lg text-sm font-semibold transition"
+                        >
+                          Pursue
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -542,37 +822,87 @@ export default function App() {
               {activePursuits.map((pursuit) => {
                 const completedCount = pursuit.steps.filter((s) => s.checked).length;
                 const progressPercent = (completedCount / pursuit.steps.length) * 100;
+                const nextStep = pursuit.steps.find((s) => !s.checked);
+                const isComplete = completedCount === pursuit.steps.length;
+                const statusLabel = isComplete ? 'Complete' : completedCount === 0 ? 'Not started' : 'In progress';
+                const panelId = `pursuit-steps-${pursuit.id}`;
 
                 return (
-                  <div key={pursuit.id} className="bg-white p-6 rounded-2xl border border-stone-200 shadow-sm space-y-4">
-                    <div className="flex justify-between items-center cursor-pointer" onClick={() => toggleExpand(pursuit.id)}>
-                      <div>
-                        <span className="text-xs font-bold text-[#4b583f] bg-[#f4f6f0] px-2.5 py-1 rounded">{pursuit.category}</span>
+                  <div
+                    key={pursuit.id}
+                    className={`bg-white p-6 rounded-2xl border shadow-sm space-y-4 ${pursuit.expanded ? 'border-[#4b583f]/40' : 'border-stone-200'}`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(pursuit.id)}
+                      aria-expanded={pursuit.expanded}
+                      aria-controls={panelId}
+                      className="group w-full flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 text-left -mx-2 px-2 py-1 rounded-xl hover:bg-stone-50"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <CategoryBadge category={pursuit.category} />
+                          <span
+                            className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${isComplete ? 'bg-[#4b583f] text-white border-[#4b583f]' : completedCount === 0 ? 'bg-white text-stone-600 border-stone-300' : 'bg-[#f4f6f0] text-[#4b583f] border-[#4b583f]/30'}`}
+                          >
+                            {isComplete && <CheckIcon className="w-3 h-3" />}
+                            {statusLabel}
+                          </span>
+                        </div>
                         <h3 className="font-bold text-stone-900 text-lg mt-1">{pursuit.title}</h3>
+                        <p className="text-xs text-stone-500 mt-0.5">
+                          {nextStep ? (
+                            <>
+                              Next step: <span className="font-semibold text-stone-700">{nextStep.label}</span>
+                            </>
+                          ) : (
+                            'All steps done. Nice work!'
+                          )}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-xs text-stone-500 font-medium">{completedCount} of {pursuit.steps.length} steps</span>
-                        <span className="text-stone-400">{pursuit.expanded ? '▲' : '▼'}</span>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-xs text-stone-600 font-medium">
+                          {completedCount} of {pursuit.steps.length} steps done
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#4b583f] bg-[#f4f6f0] group-hover:bg-[#e9eee2] px-2.5 py-1.5 rounded-lg">
+                          {pursuit.expanded ? 'Hide steps' : 'Show steps'}
+                          <ChevronDownIcon className={`w-4 h-4 transition-transform ${pursuit.expanded ? 'rotate-180' : ''}`} />
+                        </span>
                       </div>
-                    </div>
+                    </button>
 
-                    <div className="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
+                    <div
+                      role="progressbar"
+                      aria-label={`${pursuit.title} progress`}
+                      aria-valuemin={0}
+                      aria-valuemax={pursuit.steps.length}
+                      aria-valuenow={completedCount}
+                      aria-valuetext={`${completedCount} of ${pursuit.steps.length} steps done`}
+                      className="w-full bg-stone-100 h-2 rounded-full overflow-hidden"
+                    >
                       <div className="bg-[#4b583f] h-full transition-all duration-300" style={{ width: `${progressPercent}%` }}></div>
                     </div>
 
                     {pursuit.expanded && (
-                      <div className="space-y-2 pt-2 border-t border-stone-100">
-                        {pursuit.steps.map((step) => (
-                          <label key={step.id} className="flex items-center gap-3 cursor-pointer py-1.5 px-2 hover:bg-stone-50 rounded-lg">
+                      <div id={panelId} className="space-y-1 pt-2 border-t border-stone-100">
+                        <p className="text-xs text-stone-500 px-2 pb-1">Check off each step as you finish it. Your progress bar updates automatically.</p>
+                        {pursuit.steps.map((step, index) => (
+                          <label key={step.id} className="flex items-center gap-3 py-2 px-2 hover:bg-stone-50 rounded-lg">
                             <input
                               type="checkbox"
                               checked={step.checked}
-                              onChange={() => toggleStep(pursuit.id, step.id)}
-                              className="w-4 h-4 text-[#4b583f] rounded border-stone-300 focus:ring-[#4b583f]"
+                              onChange={() => handleStepToggle(pursuit, step)}
+                              className="w-4 h-4 shrink-0 accent-[#4b583f]"
                             />
-                            <span className={`text-sm ${step.checked ? 'line-through text-stone-400' : 'text-stone-800'}`}>
+                            <span className={`text-sm flex-1 ${step.checked ? 'line-through text-stone-400' : 'text-stone-800'}`}>
+                              <span className="sr-only">Step {index + 1}: </span>
                               {step.label}
                             </span>
+                            {step.checked && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#4b583f]">
+                                <CheckCircleIcon className="w-3.5 h-3.5" /> Done
+                              </span>
+                            )}
                           </label>
                         ))}
                       </div>
@@ -588,22 +918,36 @@ export default function App() {
 
       {/* VIEW DETAILS POP-UP MODAL (Matching Image 1) */}
       {selectedOpportunity && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white max-w-lg w-full rounded-3xl p-6 shadow-2xl relative space-y-6 border border-stone-200">
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fadeIn"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedOpportunity(null);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="opportunity-modal-title"
+            className="bg-white max-w-lg w-full max-h-[calc(100vh-2rem)] overflow-y-auto rounded-3xl p-6 shadow-2xl relative space-y-6 border border-stone-200"
+          >
             {/* Top modal handle indicator & Close button */}
-            <div className="w-12 h-1.5 bg-stone-300 rounded-full mx-auto mb-2"></div>
-            <div className="flex justify-between items-start">
+            <div className="w-12 h-1.5 bg-stone-300 rounded-full mx-auto mb-2" aria-hidden="true"></div>
+            <div className="flex justify-between items-start gap-4">
               <div>
-                <h2 className="text-2xl font-extrabold text-stone-900">{selectedOpportunity.title}</h2>
+                <h2 id="opportunity-modal-title" className="text-2xl font-extrabold text-stone-900">{selectedOpportunity.title}</h2>
                 <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mt-1">
                   {selectedOpportunity.category} · GRANT
                 </p>
               </div>
               <button
+                ref={modalCloseRef}
+                type="button"
                 onClick={() => setSelectedOpportunity(null)}
-                className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-700 font-bold transition"
+                aria-label="Close details"
+                title="Close (Esc)"
+                className="shrink-0 w-9 h-9 rounded-full bg-stone-100 hover:bg-stone-200 active:bg-stone-300 flex items-center justify-center text-stone-700 transition"
               >
-                ✕
+                <CloseIcon className="w-4 h-4" />
               </button>
             </div>
 
@@ -636,18 +980,37 @@ export default function App() {
             </div>
 
             {/* Add to Comparison Planner Button */}
-            <button
-              onClick={() => {
-                setSelectedOpportunity(null);
-                setActiveTab('compare');
-              }}
-              className="w-full bg-[#4b583f] hover:bg-[#3d4833] text-white py-3.5 rounded-xl font-semibold shadow-md transition text-center"
-            >
-              Add to Comparison Planner
-            </button>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => addToComparison(selectedOpportunity)}
+                className="w-full inline-flex items-center justify-center gap-2 bg-[#4b583f] hover:bg-[#3d4833] active:bg-[#323b2a] text-white py-3.5 rounded-xl font-semibold shadow-md transition text-center"
+              >
+                {compareIds.includes(selectedOpportunity.id) ? (
+                  <>
+                    <CheckIcon className="w-4 h-4" />
+                    Already added: view comparison
+                  </>
+                ) : (
+                  <>
+                    <PlusIcon className="w-4 h-4" />
+                    Add to Comparison Planner
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedOpportunity(null)}
+                className="w-full text-sm font-medium text-stone-600 hover:text-stone-900 hover:bg-stone-100 py-2.5 rounded-xl"
+              >
+                Back to {TAB_LABELS[activeTab]}
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      <Toast toast={toast} onDismiss={dismissToast} />
     </div>
   );
 }
