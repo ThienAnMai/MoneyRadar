@@ -107,6 +107,16 @@ export default function App() {
       status: 'In comparison',
     },
     {
+      id: 'ed-grant',
+      title: 'Toward Excellence, Access & Success (TEXAS) Grant Program',
+      category: 'EDUCATION',
+      value: 'Up to $5,429 per semester or over $16,000 across an academic year depending on state allocations',
+      deadline: 'January 15 2027',
+      description: 'State-funded, need-based financial aid program established by the Texas Legislature to help eligible students with financial need attend public universities and health-related institutions in Texas.',
+      eligibility: ['Enrolled in 3/4 time', 'Income information required', 'Proof of enrollment in first undergraduate degree required'],
+      status: 'In comparison',
+    },
+    {
       id: 'emp-benefit',
       title: 'Employment Benefit',
       category: 'EMPLOYMENT',
@@ -114,6 +124,16 @@ export default function App() {
       deadline: '15 Dec 2026',
       description: 'Work-related training costs and professional certification subsidies.',
       eligibility: ['Part-time or full-time employment status', 'Employer approval letter'],
+      status: 'In comparison',
+    },
+    {
+      id: 'emp-benefit',
+      title: 'Federal Work-Study (FWS) program',
+      category: 'EMPLOYMENT',
+      value: 'Depends on FAFSA application',
+      deadline: 'June 30 2027',
+      description: 'Part-time jobs tailored to a students class schedule, with earnings that can be structured around financial need.',
+      eligibility: ['FAFSA application', 'Enrolled in University, College, or Trade School'],
       status: 'In comparison',
     },
     {
@@ -126,6 +146,17 @@ export default function App() {
       eligibility: ['Resident in Texas', 'Income under $30,000'],
       status: 'Saved for later',
     },
+      {
+      id: 'fin-support',
+      title: 'Frost Bank Program',
+      category: 'OTHER',
+      value: '$8000 interest free loan',
+      deadline: 'Until funds are exhausted',
+      description: 'Ernest A. Mantzel Foundation is offering an interest free loan to undergraduates and graduates enrolled full-time at any Texas College or University',
+      eligibility: ['Resident in Texas', 'Enrolled in University or College'],
+      status: 'Saved for later',
+    },
+        
   ];
 
   const toggleStep = (pursuitId, stepId) => {
@@ -648,6 +679,46 @@ export default function App() {
                       type="text"
                       value={profileDraft.education}
                       onChange={(e) => setProfileDraft({ ...profileDraft, education: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="profile-income" className="block text-xs font-semibold text-stone-700 mb-1">Income</label>
+                    <input
+                      id="profile-income"
+                      type="text"
+                      value={profileDraft.income}
+                      onChange={(e) => setProfileDraft({ ...profileDraft, income: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="profile-location" className="block text-xs font-semibold text-stone-700 mb-1">Location</label>
+                    <input
+                      id="profile-location"
+                      type="text"
+                      value={profileDraft.location}
+                      onChange={(e) => setProfileDraft({ ...profileDraft, location: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="profile-experience" className="block text-xs font-semibold text-stone-700 mb-1">Experience</label>
+                    <input
+                      id="profile-experience"
+                      type="text"
+                      value={profileDraft.experience}
+                      onChange={(e) => setProfileDraft({ ...profileDraft, experience: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="profile-goal" className="block text-xs font-semibold text-stone-700 mb-1">Goal</label>
+                    <input
+                      id="profile-goal"
+                      type="text"
+                      value={profileDraft.goal}
+                      onChange={(e) => setProfileDraft({ ...profileDraft, goal: e.target.value })}
                       className="w-full px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm"
                     />
                   </div>
