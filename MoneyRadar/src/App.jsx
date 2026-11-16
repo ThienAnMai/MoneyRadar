@@ -135,7 +135,7 @@ export default function App() {
       eligibility: ['Enrolled in 3/4 time', 'Income information required', 'Proof of enrollment in first undergraduate degree required'],
       status: 'Saved for later',
     },
-     {
+    {
       id: 'esa-foundation',
       title: 'Epsilon Sigma Alpha Foundation',
       category: 'EDUCATION',
@@ -175,7 +175,7 @@ export default function App() {
       eligibility: ['FAFSA application', 'Enrolled in University, College, or Trade School'],
       status: 'Saved for later',
     },
-      {
+    {
       id: 'workforce-pell',
       title: 'Workforce Pell Grant Program',
       category: 'EMPLOYMENT',
@@ -185,7 +185,7 @@ export default function App() {
       eligibility: ['U.S. residency required'],
       status: 'Saved for later',
     },
-       {
+    {
       id: 'amazon-career-choice',
       title: 'Amazon Career Choice',
       category: 'EMPLOYMENT',
@@ -205,7 +205,7 @@ export default function App() {
       eligibility: ['Resident in Texas', 'Income under $30,000'],
       status: 'Saved for later',
     },
-      {
+    {
       id: 'frost-bank',
       title: 'Frost Bank Program',
       category: 'OTHER',
@@ -225,7 +225,7 @@ export default function App() {
       eligibility: ['Elligible non-resident', 'Enrolled in UTD'],
       status: 'Saved for later',
     },
-       {
+    {
       id: 'student-loan-interest',
       title: 'Federal tax return student loan interest deduction',
       category: 'OTHER',
@@ -235,7 +235,6 @@ export default function App() {
       eligibility: ['Enrolled in University or College'],
       status: 'Saved for later',
     },
-
   ];
 
   // Explore: search (title + description, case-insensitive) combined with the category filter.
@@ -283,10 +282,18 @@ export default function App() {
   };
 
   // --- NAVIGATION, FEEDBACK & GUIDANCE ---
+  const [queueIds, setQueueIds] = useState(() =>
+    opportunitiesList.filter((o) => o.status === 'In comparison').map((o) => o.id)
+  );
   const [compareIds, setCompareIds] = useState(() =>
     opportunitiesList.filter((o) => o.status === 'In comparison').map((o) => o.id)
   );
+
+  const queuedOpportunities = opportunitiesList.filter((o) => queueIds.includes(o.id));
   const comparedOpportunities = opportunitiesList.filter((o) => compareIds.includes(o.id));
+
+  const inProgressPursuits = activePursuits.filter((p) => !p.steps.every((s) => s.checked));
+  const completedPursuits = activePursuits.filter((p) => p.steps.every((s) => s.checked));
 
   const navigateTo = (tab) => {
     if (tab === activeTab) return;
@@ -320,8 +327,28 @@ export default function App() {
     }
   };
 
+  const saveToQueue = (item) => {
+    setSelectedOpportunity(null);
+    if (queueIds.includes(item.id)) {
+      showToast(`${item.title} is already in your saved queue.`, 'info');
+    } else {
+      setQueueIds((prev) => [...prev, item.id]);
+      showToast(`Saved ${item.title} to your queue.`);
+    }
+    navigateTo('compare');
+  };
+
+  const removeFromQueue = (item) => {
+    setQueueIds((prev) => prev.filter((id) => id !== item.id));
+    setCompareIds((prev) => prev.filter((id) => id !== item.id));
+    showToast(`Removed ${item.title} from your saved queue.`);
+  };
+
   const addToComparison = (item) => {
     setSelectedOpportunity(null);
+    if (!queueIds.includes(item.id)) {
+      setQueueIds((prev) => [...prev, item.id]);
+    }
     if (compareIds.includes(item.id)) {
       showToast(`${item.title} is already in your comparison.`, 'info');
     } else {
@@ -362,7 +389,7 @@ export default function App() {
     const doneCount = pursuit.steps.filter((s) => (s.id === step.id ? !s.checked : s.checked)).length;
     const total = pursuit.steps.length;
     if (!step.checked && doneCount === total) {
-      showToast(`All ${total} steps complete for ${pursuit.title}.`);
+      showToast(`Completed ${pursuit.title}! Moved to Completed below.`);
     } else if (!step.checked) {
       showToast(`Marked "${step.label}" as done. ${doneCount} of ${total} steps complete.`);
     } else {
@@ -409,6 +436,98 @@ export default function App() {
       modalReturnFocusRef.current?.focus?.();
     };
   }, [selectedOpportunity]);
+
+  const renderPursuitCard = (pursuit) => {
+    const completedCount = pursuit.steps.filter((s) => s.checked).length;
+    const progressPercent = (completedCount / pursuit.steps.length) * 100;
+    const nextStep = pursuit.steps.find((s) => !s.checked);
+    const isComplete = completedCount === pursuit.steps.length;
+    const statusLabel = isComplete ? 'Complete' : completedCount === 0 ? 'Not started' : 'In progress';
+    const panelId = `pursuit-steps-${pursuit.id}`;
+
+    return (
+      <div
+        key={pursuit.id}
+        className={`bg-white p-6 rounded-2xl border shadow-sm space-y-4 ${pursuit.expanded ? 'border-[#4b583f]/40' : 'border-stone-200'}`}
+      >
+        <button
+          type="button"
+          onClick={() => toggleExpand(pursuit.id)}
+          aria-expanded={pursuit.expanded}
+          aria-controls={panelId}
+          className="group w-full flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 text-left -mx-2 px-2 py-1 rounded-xl hover:bg-stone-50"
+        >
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <CategoryBadge category={pursuit.category} />
+              <span
+                className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${isComplete ? 'bg-[#4b583f] text-white border-[#4b583f]' : completedCount === 0 ? 'bg-white text-stone-600 border-stone-300' : 'bg-[#f4f6f0] text-[#4b583f] border-[#4b583f]/30'}`}
+              >
+                {isComplete && <CheckIcon className="w-3 h-3" />}
+                {statusLabel}
+              </span>
+            </div>
+            <h3 className="font-bold text-stone-900 text-lg mt-1">{pursuit.title}</h3>
+            <p className="text-xs text-stone-500 mt-0.5">
+              {nextStep ? (
+                <>
+                  Next step: <span className="font-semibold text-stone-700">{nextStep.label}</span>
+                </>
+              ) : (
+                'All steps done. Nice work!'
+              )}
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <span className="text-xs text-stone-600 font-medium">
+              {completedCount} of {pursuit.steps.length} steps done
+            </span>
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#4b583f] bg-[#f4f6f0] group-hover:bg-[#e9eee2] px-2.5 py-1.5 rounded-lg">
+              {pursuit.expanded ? 'Hide steps' : 'Show steps'}
+              <ChevronDownIcon className={`w-4 h-4 transition-transform ${pursuit.expanded ? 'rotate-180' : ''}`} />
+            </span>
+          </div>
+        </button>
+
+        <div
+          role="progressbar"
+          aria-label={`${pursuit.title} progress`}
+          aria-valuemin={0}
+          aria-valuemax={pursuit.steps.length}
+          aria-valuenow={completedCount}
+          aria-valuetext={`${completedCount} of ${pursuit.steps.length} steps done`}
+          className="w-full bg-stone-100 h-2 rounded-full overflow-hidden"
+        >
+          <div className="bg-[#4b583f] h-full transition-all duration-300" style={{ width: `${progressPercent}%` }}></div>
+        </div>
+
+        {pursuit.expanded && (
+          <div id={panelId} className="space-y-1 pt-2 border-t border-stone-100">
+            <p className="text-xs text-stone-500 px-2 pb-1">Check off each step as you finish it. Your progress bar updates automatically.</p>
+            {pursuit.steps.map((step, index) => (
+              <label key={step.id} className="flex items-center gap-3 py-2 px-2 hover:bg-stone-50 rounded-lg">
+                <input
+                  type="checkbox"
+                  checked={step.checked}
+                  onChange={() => handleStepToggle(pursuit, step)}
+                  className="w-4 h-4 shrink-0 accent-[#4b583f]"
+                />
+                <span className={`text-sm flex-1 ${step.checked ? 'line-through text-stone-400' : 'text-stone-800'}`}>
+                  <span className="sr-only">Step {index + 1}: </span>
+                  {step.label}
+                </span>
+                {step.checked && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#4b583f]">
+                    <CheckCircleIcon className="w-3.5 h-3.5" /> Done
+                  </span>
+                )}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // --- LANDING PAGE ---
   if (currentView === 'landing') {
@@ -519,7 +638,7 @@ export default function App() {
       <div className="min-h-screen bg-stone-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <div className="flex justify-center items-center gap-2 mb-4">
-          <img src="/MoneyRadarLogo.png" alt="MoneyRadar Logo" className="w-8 h-8 object-contain" /><span className="text-xl font-bold tracking-tight">Money Radar</span>
+            <img src="/MoneyRadarLogo.png" alt="MoneyRadar Logo" className="w-8 h-8 object-contain" /><span className="text-xl font-bold tracking-tight">Money Radar</span>
           </div>
           <h2 className="text-center text-3xl font-extrabold text-stone-900">Sign Up</h2>
           <p className="mt-2 text-center text-sm text-stone-600">Create an account to find opportunities.</p>
@@ -807,9 +926,9 @@ export default function App() {
                   <div>
                     <div className="flex items-center justify-between gap-2">
                       <CategoryBadge category={item.category} />
-                      {compareIds.includes(item.id) && (
+                      {queueIds.includes(item.id) && (
                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-stone-500">
-                          <CheckIcon className="w-3.5 h-3.5" /> In comparison
+                          <CheckIcon className="w-3.5 h-3.5" /> In queue
                         </span>
                       )}
                     </div>
@@ -1052,149 +1171,107 @@ export default function App() {
 
             {/* Saved Queue */}
             <div className="space-y-4">
-              <h3 className="font-bold text-stone-900 text-lg">Saved queue ({opportunitiesList.length})</h3>
-              <div className="space-y-3">
-                {opportunitiesList.map((item) => {
-                  const isCompared = compareIds.includes(item.id);
-                  return (
-                    <div key={item.id} className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-                      <div>
-                        <h4 className="font-bold text-stone-900">{item.title}</h4>
-                        <p className="text-xs text-stone-500 mt-0.5">{isCompared ? 'In comparison' : 'Saved for later'}</p>
+              <h3 className="font-bold text-stone-900 text-lg">Saved queue ({queuedOpportunities.length})</h3>
+              {queuedOpportunities.length === 0 ? (
+                <div className="bg-white p-6 rounded-2xl border border-dashed border-stone-300 text-center space-y-3">
+                  <p className="text-sm text-stone-600">Your saved queue is empty. Save opportunities from Explore or My Radar to review them here.</p>
+                  <button
+                    type="button"
+                    onClick={browseAllInExplore}
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#4b583f] hover:bg-[#f4f6f0] px-3 py-2 rounded-lg"
+                  >
+                    Browse Explore
+                    <ArrowRightIcon className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {queuedOpportunities.map((item) => {
+                    const isCompared = compareIds.includes(item.id);
+                    return (
+                      <div key={item.id} className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                        <div>
+                          <h4 className="font-bold text-stone-900">{item.title}</h4>
+                          <p className="text-xs text-stone-500 mt-0.5">{isCompared ? 'In comparison' : 'Saved for later'}</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => (isCompared ? removeFromComparison(item) : addToComparison(item))}
+                            aria-label={isCompared ? `Comparing ${item.title}. Remove from comparison` : `Add ${item.title} to comparison`}
+                            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition ${isCompared ? 'bg-[#f4f6f0] border-[#4b583f]/40 text-[#4b583f] hover:bg-[#e9eee2]' : 'border-stone-300 text-stone-700 hover:bg-stone-100 active:bg-stone-200'}`}
+                          >
+                            {isCompared ? <CheckIcon className="w-4 h-4" /> : <PlusIcon className="w-4 h-4" />}
+                            {isCompared ? 'Comparing' : 'Compare'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => pursueOpportunity(item)}
+                            className="border border-[#4b583f] text-[#4b583f] hover:bg-[#4b583f] hover:text-white active:bg-[#3d4833] px-5 py-2 rounded-lg text-sm font-semibold transition"
+                          >
+                            Pursue
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeFromQueue(item)}
+                            aria-label={`Remove ${item.title} from queue`}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-stone-500 hover:text-stone-800 hover:bg-stone-100 px-2.5 py-2 rounded-lg"
+                          >
+                            <CloseIcon className="w-3.5 h-3.5" />
+                            Remove
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => (isCompared ? removeFromComparison(item) : addToComparison(item))}
-                          aria-label={isCompared ? `Comparing ${item.title}. Remove from comparison` : `Add ${item.title} to comparison`}
-                          className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition ${isCompared ? 'bg-[#f4f6f0] border-[#4b583f]/40 text-[#4b583f] hover:bg-[#e9eee2]' : 'border-stone-300 text-stone-700 hover:bg-stone-100 active:bg-stone-200'}`}
-                        >
-                          {isCompared ? <CheckIcon className="w-4 h-4" /> : <PlusIcon className="w-4 h-4" />}
-                          {isCompared ? 'Comparing' : 'Compare'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => pursueOpportunity(item)}
-                          className="border border-[#4b583f] text-[#4b583f] hover:bg-[#4b583f] hover:text-white active:bg-[#3d4833] px-5 py-2 rounded-lg text-sm font-semibold transition"
-                        >
-                          Pursue
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}
 
         {/* TAB 4: ACTIVE PURSUITS */}
         {activeTab === 'active' && (
-          <div className="space-y-6">
+          <div className="space-y-8">
             <div>
               <h1 className="text-3xl font-extrabold text-stone-900">Active Pursuits</h1>
               <p className="text-stone-600 text-sm mt-1">Track your next steps for each opportunity.</p>
             </div>
 
+            {/* In Progress / Not Started Pursuits */}
             <div className="space-y-4">
-              {activePursuits.map((pursuit) => {
-                const completedCount = pursuit.steps.filter((s) => s.checked).length;
-                const progressPercent = (completedCount / pursuit.steps.length) * 100;
-                const nextStep = pursuit.steps.find((s) => !s.checked);
-                const isComplete = completedCount === pursuit.steps.length;
-                const statusLabel = isComplete ? 'Complete' : completedCount === 0 ? 'Not started' : 'In progress';
-                const panelId = `pursuit-steps-${pursuit.id}`;
+              {inProgressPursuits.length === 0 ? (
+                <div className="bg-white p-6 rounded-2xl border border-dashed border-stone-300 text-center space-y-2">
+                  <p className="text-sm font-medium text-stone-700">No active pursuits right now.</p>
+                  <p className="text-xs text-stone-500">All current pursuits are completed below, or you can start pursuing new ones from your queue.</p>
+                </div>
+              ) : (
+                inProgressPursuits.map(renderPursuitCard)
+              )}
+            </div>
 
-                return (
-                  <div
-                    key={pursuit.id}
-                    className={`bg-white p-6 rounded-2xl border shadow-sm space-y-4 ${pursuit.expanded ? 'border-[#4b583f]/40' : 'border-stone-200'}`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => toggleExpand(pursuit.id)}
-                      aria-expanded={pursuit.expanded}
-                      aria-controls={panelId}
-                      className="group w-full flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 text-left -mx-2 px-2 py-1 rounded-xl hover:bg-stone-50"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <CategoryBadge category={pursuit.category} />
-                          <span
-                            className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${isComplete ? 'bg-[#4b583f] text-white border-[#4b583f]' : completedCount === 0 ? 'bg-white text-stone-600 border-stone-300' : 'bg-[#f4f6f0] text-[#4b583f] border-[#4b583f]/30'}`}
-                          >
-                            {isComplete && <CheckIcon className="w-3 h-3" />}
-                            {statusLabel}
-                          </span>
-                        </div>
-                        <h3 className="font-bold text-stone-900 text-lg mt-1">{pursuit.title}</h3>
-                        <p className="text-xs text-stone-500 mt-0.5">
-                          {nextStep ? (
-                            <>
-                              Next step: <span className="font-semibold text-stone-700">{nextStep.label}</span>
-                            </>
-                          ) : (
-                            'All steps done. Nice work!'
-                          )}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span className="text-xs text-stone-600 font-medium">
-                          {completedCount} of {pursuit.steps.length} steps done
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#4b583f] bg-[#f4f6f0] group-hover:bg-[#e9eee2] px-2.5 py-1.5 rounded-lg">
-                          {pursuit.expanded ? 'Hide steps' : 'Show steps'}
-                          <ChevronDownIcon className={`w-4 h-4 transition-transform ${pursuit.expanded ? 'rotate-180' : ''}`} />
-                        </span>
-                      </div>
-                    </button>
-
-                    <div
-                      role="progressbar"
-                      aria-label={`${pursuit.title} progress`}
-                      aria-valuemin={0}
-                      aria-valuemax={pursuit.steps.length}
-                      aria-valuenow={completedCount}
-                      aria-valuetext={`${completedCount} of ${pursuit.steps.length} steps done`}
-                      className="w-full bg-stone-100 h-2 rounded-full overflow-hidden"
-                    >
-                      <div className="bg-[#4b583f] h-full transition-all duration-300" style={{ width: `${progressPercent}%` }}></div>
-                    </div>
-
-                    {pursuit.expanded && (
-                      <div id={panelId} className="space-y-1 pt-2 border-t border-stone-100">
-                        <p className="text-xs text-stone-500 px-2 pb-1">Check off each step as you finish it. Your progress bar updates automatically.</p>
-                        {pursuit.steps.map((step, index) => (
-                          <label key={step.id} className="flex items-center gap-3 py-2 px-2 hover:bg-stone-50 rounded-lg">
-                            <input
-                              type="checkbox"
-                              checked={step.checked}
-                              onChange={() => handleStepToggle(pursuit, step)}
-                              className="w-4 h-4 shrink-0 accent-[#4b583f]"
-                            />
-                            <span className={`text-sm flex-1 ${step.checked ? 'line-through text-stone-400' : 'text-stone-800'}`}>
-                              <span className="sr-only">Step {index + 1}: </span>
-                              {step.label}
-                            </span>
-                            {step.checked && (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#4b583f]">
-                                <CheckCircleIcon className="w-3.5 h-3.5" /> Done
-                              </span>
-                            )}
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+            {/* Completed Pursuits Section */}
+            <div className="space-y-4 pt-4 border-t border-stone-200">
+              <div className="flex items-center justify-between">
+                <h2 className="font-bold text-stone-900 text-lg">
+                  Completed <span className="text-stone-500 font-medium">({completedPursuits.length})</span>
+                </h2>
+              </div>
+              {completedPursuits.length === 0 ? (
+                <div className="bg-white p-5 rounded-2xl border border-dashed border-stone-300 text-center">
+                  <p className="text-sm text-stone-500">No completed pursuits yet. Finish all steps on an active pursuit to move it here.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {completedPursuits.map(renderPursuitCard)}
+                </div>
+              )}
             </div>
           </div>
         )}
-
       </main>
 
-      {/* VIEW DETAILS POP-UP MODAL (Matching Image 1) */}
+      {/* VIEW DETAILS POP-UP MODAL */}
       {selectedOpportunity && (
         <div
           className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fadeIn"
@@ -1257,22 +1334,22 @@ export default function App() {
               </ul>
             </div>
 
-            {/* Add to Comparison Planner Button */}
+            {/* Save to Queue Button */}
             <div className="space-y-2">
               <button
                 type="button"
-                onClick={() => addToComparison(selectedOpportunity)}
+                onClick={() => saveToQueue(selectedOpportunity)}
                 className="w-full inline-flex items-center justify-center gap-2 bg-[#4b583f] hover:bg-[#3d4833] active:bg-[#323b2a] text-white py-3.5 rounded-xl font-semibold shadow-md transition text-center"
               >
-                {compareIds.includes(selectedOpportunity.id) ? (
+                {queueIds.includes(selectedOpportunity.id) ? (
                   <>
                     <CheckIcon className="w-4 h-4" />
-                    Already added: view comparison
+                    Saved in queue: view queue
                   </>
                 ) : (
                   <>
                     <PlusIcon className="w-4 h-4" />
-                    Add to Comparison Planner
+                    Save to Queue
                   </>
                 )}
               </button>
