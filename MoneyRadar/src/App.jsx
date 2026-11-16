@@ -546,6 +546,45 @@ export default function App() {
               </select>
             </div>
 
+            <div> 
+              <label className="block text-xs font-semibold text-stone-700 uppercase mb-1">Location</label>
+              <select
+                value={profile.location}
+                onChange={(e) => setProfile({ ...profile, location: e.target.value })}
+                className="w-full px-4 py-2 border border-stone-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#4b583f]"
+              >
+                {PROFILE_OPTIONS.location.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </div>
+
+            <div> 
+              <label className="block text-xs font-semibold text-stone-700 uppercase mb-1">Experience</label>
+              <select
+                value={profile.experience}
+                onChange={(e) => setProfile({ ...profile, experience: e.target.value })}
+                className="w-full px-4 py-2 border border-stone-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#4b583f]"
+              >
+                {PROFILE_OPTIONS.experience.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </div>
+
+            <div> 
+              <label className="block text-xs font-semibold text-stone-700 uppercase mb-1">Current Goal</label>
+              <select
+                value={profile.goal}
+                onChange={(e) => setProfile({ ...profile, goal: e.target.value })}
+                className="w-full px-4 py-2 border border-stone-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#4b583f]"
+              >
+                {PROFILE_OPTIONS.goal.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </div>
+
             <button onClick={() => setCurrentView('dashboard')} className="w-full bg-[#4b583f] hover:bg-[#3d4833] text-white font-medium py-2.5 rounded-lg transition mt-4">
               Create Account
             </button>
