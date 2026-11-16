@@ -3,6 +3,7 @@ import CategoryBadge from './components/CategoryBadge.jsx';
 import Toast from './components/Toast.jsx';
 import WelcomeGuide from './components/WelcomeGuide.jsx';
 import { useToast } from './components/useToast.js';
+import { PROFILE_OPTIONS, getRecommendations } from './recommendations.js';
 import {
   ArrowRightIcon,
   BackIcon,
@@ -29,6 +30,14 @@ const TAB_LABELS = Object.fromEntries(TABS.map((t) => [t.id, t.label]));
 const MAX_TAB_HISTORY = 20;
 const GUIDE_DISMISSED_KEY = 'moneyradar.guideDismissed';
 const DEFAULT_PURSUIT_STEPS = ['Check eligibility', 'Gather documents', 'Submit application'];
+const PROFILE_FIELDS = [
+  { key: 'employment', label: 'Employment' },
+  { key: 'education', label: 'Education' },
+  { key: 'income', label: 'Income' },
+  { key: 'location', label: 'Location' },
+  { key: 'experience', label: 'Experience' },
+  { key: 'goal', label: 'Goal' },
+];
 
 function readGuideDismissed() {
   try {
@@ -50,7 +59,7 @@ export default function App() {
 
   const [profile, setProfile] = useState({
     employment: 'Part-time',
-    education: 'Student',
+    education: 'College student',
     income: 'Under $30,000',
     location: 'Texas',
     experience: 'Entry-level',
@@ -216,8 +225,13 @@ export default function App() {
       eligibility: ['Enrolled in University or College'],
       status: 'Saved for later',
     },
-        
+
   ];
+
+  // My Radar matches, recalculated whenever the saved profile changes.
+  const recommendations = getRecommendations(profile, opportunitiesList);
+  const matchSummary = (count) =>
+    count === 0 ? 'No opportunities match these answers yet.' : `${count} ${count === 1 ? 'opportunity' : 'opportunities'} may fit your answers.`;
 
   const toggleStep = (pursuitId, stepId) => {
     setActivePursuits((prev) =>
@@ -337,7 +351,7 @@ export default function App() {
     setIsEditingProfile(false);
     if (changed) {
       setProfile(profileDraft);
-      showToast('Profile saved. Your updated answers are shown in Your Profile.');
+      showToast(`Profile saved. ${matchSummary(getRecommendations(profileDraft, opportunitiesList).length)}`);
     } else {
       showToast('No changes to save. Your profile is unchanged.', 'info');
     }
@@ -495,30 +509,40 @@ export default function App() {
 
             <div>
               <label className="block text-xs font-semibold text-stone-700 uppercase mb-1">Employment Status</label>
-              <select className="w-full px-4 py-2 border border-stone-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#4b583f]">
-                <option>Part-time</option>
-                <option>Full-time</option>
-                <option>Unemployed</option>
-                <option>Freelance</option>
+              <select
+                value={profile.employment}
+                onChange={(e) => setProfile({ ...profile, employment: e.target.value })}
+                className="w-full px-4 py-2 border border-stone-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#4b583f]"
+              >
+                {PROFILE_OPTIONS.employment.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-stone-700 uppercase mb-1">Income Range</label>
-              <select className="w-full px-4 py-2 border border-stone-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#4b583f]">
-                <option>Under $30,000</option>
-                <option>$30,000 - $60,000</option>
-                <option>$60,000+</option>
+              <select
+                value={profile.income}
+                onChange={(e) => setProfile({ ...profile, income: e.target.value })}
+                className="w-full px-4 py-2 border border-stone-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#4b583f]"
+              >
+                {PROFILE_OPTIONS.income.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-stone-700 uppercase mb-1">Education Level</label>
-              <select className="w-full px-4 py-2 border border-stone-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#4b583f]">
-                <option>Student</option>
-                <option>High School</option>
-                <option>Bachelor's Degree</option>
-                <option>Graduate</option>
+              <select
+                value={profile.education}
+                onChange={(e) => setProfile({ ...profile, education: e.target.value })}
+                className="w-full px-4 py-2 border border-stone-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#4b583f]"
+              >
+                {PROFILE_OPTIONS.education.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
               </select>
             </div>
 
@@ -722,66 +746,26 @@ export default function App() {
               <div id="profile-questionnaire" className="bg-[#f4f6f0] p-6 rounded-2xl border border-[#4b583f]/30 space-y-4">
                 <h3 className="font-bold text-[#4b583f] text-lg">Update Profile Questionnaire</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="profile-employment" className="block text-xs font-semibold text-stone-700 mb-1">Employment</label>
-                    <input
-                      id="profile-employment"
-                      type="text"
-                      value={profileDraft.employment}
-                      onChange={(e) => setProfileDraft({ ...profileDraft, employment: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="profile-education" className="block text-xs font-semibold text-stone-700 mb-1">Education</label>
-                    <input
-                      id="profile-education"
-                      type="text"
-                      value={profileDraft.education}
-                      onChange={(e) => setProfileDraft({ ...profileDraft, education: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="profile-income" className="block text-xs font-semibold text-stone-700 mb-1">Income</label>
-                    <input
-                      id="profile-income"
-                      type="text"
-                      value={profileDraft.income}
-                      onChange={(e) => setProfileDraft({ ...profileDraft, income: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="profile-location" className="block text-xs font-semibold text-stone-700 mb-1">Location</label>
-                    <input
-                      id="profile-location"
-                      type="text"
-                      value={profileDraft.location}
-                      onChange={(e) => setProfileDraft({ ...profileDraft, location: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="profile-experience" className="block text-xs font-semibold text-stone-700 mb-1">Experience</label>
-                    <input
-                      id="profile-experience"
-                      type="text"
-                      value={profileDraft.experience}
-                      onChange={(e) => setProfileDraft({ ...profileDraft, experience: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="profile-goal" className="block text-xs font-semibold text-stone-700 mb-1">Goal</label>
-                    <input
-                      id="profile-goal"
-                      type="text"
-                      value={profileDraft.goal}
-                      onChange={(e) => setProfileDraft({ ...profileDraft, goal: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm"
-                    />
-                  </div>
+                  {PROFILE_FIELDS.map(({ key, label }) => {
+                    const options = PROFILE_OPTIONS[key];
+                    return (
+                      <div key={key}>
+                        <label htmlFor={`profile-${key}`} className="block text-xs font-semibold text-stone-700 mb-1">{label}</label>
+                        <select
+                          id={`profile-${key}`}
+                          value={profileDraft[key]}
+                          onChange={(e) => setProfileDraft({ ...profileDraft, [key]: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm"
+                        >
+                          {/* Keep an older free-text answer selectable until the user picks a listed option. */}
+                          {!options.includes(profileDraft[key]) && <option value={profileDraft[key]}>{profileDraft[key]}</option>}
+                          {options.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <button
@@ -805,17 +789,44 @@ export default function App() {
             {/* Recommendations */}
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <h3 className="font-bold text-stone-900 text-lg">New Recommendations ({opportunitiesList.length})</h3>
+                <h3 className="font-bold text-stone-900 text-lg">Recommended for You ({recommendations.length})</h3>
                 <button
                   type="button"
-                  onClick={() => showToast(`Scan complete. Showing ${opportunitiesList.length} recommendations for your current profile.`)}
+                  onClick={() => showToast(`Scan complete. ${matchSummary(recommendations.length)}`, recommendations.length ? 'success' : 'info')}
                   className="text-xs text-[#4b583f] font-semibold hover:underline hover:bg-[#f4f6f0] px-2 py-1 rounded-md"
                 >
                   Scan again
                 </button>
               </div>
+              <p className="text-xs text-stone-500 -mt-2">
+                Matched using your profile answers, best fit first. These are estimates; always confirm eligibility with the provider.
+              </p>
 
-              {opportunitiesList.map((item) => (
+              {recommendations.length === 0 && (
+                <div className="bg-white p-6 rounded-2xl border border-dashed border-stone-300 text-center space-y-3">
+                  <p className="text-sm text-stone-700 font-medium">No opportunities match your current answers.</p>
+                  <p className="text-sm text-stone-600">Try updating your profile questionnaire, or browse everything in Explore.</p>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={openProfileEditor}
+                      className="text-sm font-semibold text-[#4b583f] hover:bg-[#f4f6f0] px-3 py-2 rounded-lg"
+                    >
+                      Edit Profile Questionnaire
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigateTo('explore')}
+                      className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#4b583f] hover:bg-[#f4f6f0] px-3 py-2 rounded-lg"
+                    >
+                      Browse Explore
+                      <ArrowRightIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {recommendations.map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -826,7 +837,9 @@ export default function App() {
                   <div className="min-w-0">
                     <CategoryBadge category={item.category} />
                     <h4 className="font-bold text-stone-900 mt-2">{item.title}</h4>
-                    <p className="text-xs text-stone-500">Based on your {item.category.toLowerCase()} profile</p>
+                    <p className="text-xs text-stone-600 mt-1">
+                      <span className="font-semibold text-[#4b583f]">Why it may fit:</span> {item.reasons.join(' · ')}
+                    </p>
                   </div>
                   <span className="shrink-0 inline-flex items-center gap-1 text-sm font-semibold text-[#4b583f] group-hover:underline">
                     <span className="hidden sm:inline">View details</span>
@@ -835,6 +848,19 @@ export default function App() {
                   </span>
                 </button>
               ))}
+
+              {recommendations.length > 0 && recommendations.length < opportunitiesList.length && (
+                <p className="text-sm text-stone-600">
+                  {opportunitiesList.length - recommendations.length} other {opportunitiesList.length - recommendations.length === 1 ? 'opportunity does' : 'opportunities do'} not match your current answers.{' '}
+                  <button
+                    type="button"
+                    onClick={() => navigateTo('explore')}
+                    className="font-semibold text-[#4b583f] hover:underline"
+                  >
+                    See all opportunities in Explore
+                  </button>
+                </p>
+              )}
             </div>
           </div>
         )}
