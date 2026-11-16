@@ -17,6 +17,7 @@ import {
   HelpIcon,
   PlusIcon,
   RadarIcon,
+  SearchIcon,
   UserIcon,
 } from './components/icons.jsx';
 
@@ -38,6 +39,12 @@ const PROFILE_FIELDS = [
   { key: 'experience', label: 'Experience' },
   { key: 'goal', label: 'Goal' },
 ];
+const EXPLORE_CATEGORIES = [
+  { id: 'ALL', label: 'All' },
+  { id: 'EDUCATION', label: 'Education' },
+  { id: 'EMPLOYMENT', label: 'Employment' },
+  { id: 'OTHER', label: 'Other' },
+];
 
 function readGuideDismissed() {
   try {
@@ -53,6 +60,9 @@ export default function App() {
   const [tabHistory, setTabHistory] = useState([]); // previously visited tabs, for the in-app Back button
   const [selectedOpportunity, setSelectedOpportunity] = useState(null); // Modal state for view details
   const [showGuide, setShowGuide] = useState(() => !readGuideDismissed());
+  const [exploreSearch, setExploreSearch] = useState('');
+  const [exploreCategory, setExploreCategory] = useState('ALL');
+  const exploreSearchRef = useRef(null);
   const { toast, showToast, dismissToast } = useToast();
   const modalCloseRef = useRef(null);
   const modalReturnFocusRef = useRef(null);
@@ -228,6 +238,29 @@ export default function App() {
 
   ];
 
+  // Explore: search (title + description, case-insensitive) combined with the category filter.
+  const searchTerm = exploreSearch.trim().toLowerCase();
+  const filteredOpportunities = opportunitiesList.filter(
+    (o) =>
+      (exploreCategory === 'ALL' || o.category === exploreCategory) &&
+      (!searchTerm || o.title.toLowerCase().includes(searchTerm) || o.description.toLowerCase().includes(searchTerm))
+  );
+  const hasExploreFilters = searchTerm !== '' || exploreCategory !== 'ALL';
+  const resetExploreFilters = () => {
+    setExploreSearch('');
+    setExploreCategory('ALL');
+  };
+  // "See all / Browse Explore" links from other tabs promise the full list, so clear any leftover filters.
+  const browseAllInExplore = () => {
+    resetExploreFilters();
+    navigateTo('explore');
+  };
+  const clearExploreSearch = () => {
+    setExploreSearch('');
+    exploreSearchRef.current?.focus();
+  };
+  const exploreCategoryLabel = EXPLORE_CATEGORIES.find((c) => c.id === exploreCategory)?.label;
+
   // My Radar matches, recalculated whenever the saved profile changes.
   const recommendations = getRecommendations(profile, opportunitiesList);
   const matchSummary = (count) =>
@@ -273,6 +306,7 @@ export default function App() {
     setSelectedOpportunity(null);
     setIsEditingProfile(false);
     setTabHistory([]);
+    resetExploreFilters();
     setActiveTab('explore');
     setCurrentView('landing');
   };
@@ -674,8 +708,95 @@ export default function App() {
               <h1 className="text-3xl font-extrabold text-stone-900">Explore Opportunities</h1>
               <p className="text-stone-600 text-sm mt-1">Browse available grants, tax credits, and financial benefits.</p>
             </div>
+
+            {/* Search & category filters */}
+            <div className="space-y-4">
+              <div className="relative">
+                <label htmlFor="explore-search" className="sr-only">Search opportunities</label>
+                <SearchIcon className="w-5 h-5 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  ref={exploreSearchRef}
+                  id="explore-search"
+                  type="search"
+                  value={exploreSearch}
+                  onChange={(e) => setExploreSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape' && exploreSearch) {
+                      e.preventDefault();
+                      setExploreSearch('');
+                    }
+                  }}
+                  placeholder="Search by name or description"
+                  autoComplete="off"
+                  className="w-full pl-11 pr-11 py-3 bg-white border border-stone-300 rounded-xl text-sm text-stone-900 placeholder:text-stone-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#4b583f] focus:border-transparent [&::-webkit-search-cancel-button]:appearance-none"
+                />
+                {exploreSearch && (
+                  <button
+                    type="button"
+                    onClick={clearExploreSearch}
+                    aria-label="Clear search"
+                    title="Clear search"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-800 hover:bg-stone-100 active:bg-stone-200"
+                  >
+                    <CloseIcon className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div role="group" aria-label="Filter by category" className="flex flex-wrap gap-2">
+                  {EXPLORE_CATEGORIES.map(({ id, label }) => {
+                    const isSelected = exploreCategory === id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setExploreCategory(id)}
+                        aria-pressed={isSelected}
+                        className={`px-4 py-2 rounded-full text-sm font-medium border transition ${isSelected ? 'bg-[#4b583f] border-[#4b583f] text-white' : 'bg-white border-stone-300 text-stone-700 hover:bg-stone-100 active:bg-stone-200'}`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center gap-3">
+                  <p className="text-sm text-stone-600" aria-live="polite">
+                    Showing {filteredOpportunities.length} of {opportunitiesList.length} opportunities
+                  </p>
+                  {hasExploreFilters && (
+                    <button
+                      type="button"
+                      onClick={resetExploreFilters}
+                      className="text-sm font-semibold text-[#4b583f] hover:bg-[#f4f6f0] px-2 py-1 rounded-md"
+                    >
+                      Reset filters
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {filteredOpportunities.length === 0 && (
+              <div className="bg-white p-6 rounded-2xl border border-dashed border-stone-300 text-center space-y-3">
+                <p className="text-sm text-stone-700 font-medium">
+                  No opportunities match
+                  {searchTerm ? <> “{exploreSearch.trim()}”</> : null}
+                  {exploreCategory !== 'ALL' ? <> in {exploreCategoryLabel}</> : null}.
+                </p>
+                <p className="text-sm text-stone-600">Try a different search term or category.</p>
+                <button
+                  type="button"
+                  onClick={resetExploreFilters}
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#4b583f] hover:bg-[#f4f6f0] px-3 py-2 rounded-lg"
+                >
+                  Clear search and filters
+                </button>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {opportunitiesList.map((item) => (
+              {filteredOpportunities.map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -816,7 +937,7 @@ export default function App() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => navigateTo('explore')}
+                      onClick={browseAllInExplore}
                       className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#4b583f] hover:bg-[#f4f6f0] px-3 py-2 rounded-lg"
                     >
                       Browse Explore
@@ -854,7 +975,7 @@ export default function App() {
                   {opportunitiesList.length - recommendations.length} other {opportunitiesList.length - recommendations.length === 1 ? 'opportunity does' : 'opportunities do'} not match your current answers.{' '}
                   <button
                     type="button"
-                    onClick={() => navigateTo('explore')}
+                    onClick={browseAllInExplore}
                     className="font-semibold text-[#4b583f] hover:underline"
                   >
                     See all opportunities in Explore
@@ -883,7 +1004,7 @@ export default function App() {
                   <p className="text-sm text-stone-600">Nothing to compare yet. Add opportunities from the saved queue below, or browse Explore.</p>
                   <button
                     type="button"
-                    onClick={() => navigateTo('explore')}
+                    onClick={browseAllInExplore}
                     className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#4b583f] hover:bg-[#f4f6f0] px-3 py-2 rounded-lg"
                   >
                     Browse Explore
